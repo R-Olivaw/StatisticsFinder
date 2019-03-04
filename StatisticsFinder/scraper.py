@@ -1,3 +1,17 @@
+#------------------------------------------------------------------------------
+'''
+These modules are for summarizing the article.
+'''
+from __future__ import absolute_import
+from __future__ import division, print_function, unicode_literals
+from sumy.parsers.html import HtmlParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer as Summarizer
+from sumy.nlp.stemmers import Stemmer
+from sumy.utils import get_stop_words
+
+#------------------------------------------------------------------------------
+
 class ScraperTool():
     
     def __init__(self, url_list):
@@ -15,6 +29,8 @@ class ScraperTool():
         self.pcnt = 0
         self.url_total = 0
     
+    #This function grabs a block of text - usually an hmtl <p> tag - and separates each sentence with a newline.
+    #The function passes the separated sentences to the temp_string variable.
     def split_paragraphs(self, string):
         import re
         periods = re.sub(r'\. ', r'. \n\n', string)
@@ -22,6 +38,10 @@ class ScraperTool():
         exclamations = re.sub(r'\! ', r'! \n\n', questions)
     
         self.temp_string = exclamations
+        
+    #UNDER CONSTRUCTION
+    def sumy_time(self):
+        pass
     
     #This function searches for all header tags and writes them to a new txt file.
     def grab_headers_and_statistics(self, folder):
@@ -88,7 +108,6 @@ class ScraperTool():
                 else:
                     soup = bs(page.text, 'html.parser')
                 #--------------------------------------------------------------
-    
                 
                 with open(self.percent_doc_string, "a") as f:
                     
@@ -113,6 +132,37 @@ class ScraperTool():
                             continue
                         except:
                             pass
+                    
+                    #Once we write down any statistics, we include a summary of the article.
+                    
+                    f.write("\n-----SUMMARY-----\n\n")
+                    
+                    #This establishes the language of the articles we're reading.
+                    LANGUAGE = "english"
+                    #This is the maximum length of the summary.
+                    SENTENCES_COUNT = 15
+                    try:
+                        #See SUMY documentation for explanation.
+                        parser = HtmlParser.from_url(line.strip(), Tokenizer(LANGUAGE))
+                        # or for plain text files
+                        # parser = PlaintextParser.from_file("document.txt", Tokenizer(LANGUAGE))
+                        stemmer = Stemmer(LANGUAGE)
+                    
+                        summarizer = Summarizer(stemmer)
+                        summarizer.stop_words = get_stop_words(LANGUAGE)
+                    
+                        #We split up the sentences and write them to the output file.
+                        for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                            self.split_paragraphs(str(sentence))
+                            f.write(self.temp_string+'\n')
+                    
+                    except requests.models.HTTPError:
+                        print("SUMY Encountered a 404 error!")
+                    except:
+                        pass
+                        
+                        
+                        
                 #--------------------------------------------------------------
                 f.close()
                 
@@ -141,6 +191,11 @@ class ScraperTool():
                         continue
                             
                 f.close()
+                #--------------------------------------------------------------
+                
+                
+                
+                
                 #--------------------------------------------------------------
                 
                 
@@ -182,6 +237,3 @@ class ScraperTool():
         print("Found {} potential statistics!".format(self.pcnt))
         print("Finished!")
         os.startfile(folder)
-
-
-
