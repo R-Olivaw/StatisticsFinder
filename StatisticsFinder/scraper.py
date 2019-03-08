@@ -11,6 +11,9 @@ from sumy.summarizers.lsa import LsaSummarizer as Summarizer
 from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
 
+#we'll use this library to grab keywords from each article.
+from newspaper import Article
+
 #------------------------------------------------------------------------------
 
 class ScraperTool():
@@ -44,7 +47,7 @@ class ScraperTool():
         
     
     #This function searches for all header tags and writes them to a new txt file.
-    def grab_headers_and_statistics(self, folder):
+    def generate_search_report(self, folder):
         import requests, re, os
         requests.packages.urllib3.disable_warnings() 
         from bs4 import BeautifulSoup as bs
@@ -111,7 +114,7 @@ class ScraperTool():
                 
                 with open(self.percent_doc_string, "a") as f:
                     
-                    f.write("\n----------\n\n>>URL: " + line + "\n" )
+                    f.write("\n----------\n\n>>URL: " + line + "\n\n-----STATISTICS-----\n\n" )
                 
                     #This chunk checks the webpage for 'percent' or '%', then writes the containing paragraphs to out file.
                     percentRegex = re.compile('(p)?ercent')
@@ -133,7 +136,26 @@ class ScraperTool():
                         except:
                             pass
                     
-                    #Once we write down any statistics, we include a summary of the article.
+                    #Next, we'll grab keywords from the article.
+                    f.write("\n-----KEYWORDS-----\n\n")
+                    
+                    #Here, we're using the newspaper library to parse each article with nlp and extract keywords.
+                    article = Article(url=line.strip())
+                    article.download()
+                    article.parse()
+                    article.nlp()
+                    
+                    #We print keywords to the doc.
+                    kw_cnt = 0
+                    for word in article.keywords:
+                        #nlp isn't perfect. It'll pick up common words. We use a list of 3,000 common words to filter our keywords further.
+                        if not word in open('common_words.txt').read():
+                            kw_cnt += 1
+                            f.write(str(kw_cnt) + ". " + word + "\n")
+                        else:
+                            pass
+                    
+                    #Once we write down any statistics and keywords, we include a summary of the article.
                     
                     f.write("\n-----SUMMARY-----\n\n")
                     
@@ -159,65 +181,26 @@ class ScraperTool():
                         print("SUMY Encountered a 404 error!")
                     except:
                         pass
-                        
-                        
-                        
-                #--------------------------------------------------------------
-                f.close()
+
+                    f.close()
+                    
+                    self.output_file_id = file_name
                 
-                
-                with open(file_name, "w") as f:
-                    try:
-                        f.write("\n----------------------------------------------------\n                    HEADERS BELOW\n----------------------------------------------------\n")
-                        
-                        #This chunk searches for all header tags uing a regex, then writes them to the file.
-                        headings_list = soup.find_all(re.compile(r'h\d+'))
-                        
-                        for item in headings_list:
-                            header = item.get_text()
-                            if isinstance(header, str):
-                                #Not sure why, but some headers throw a UnicodeEncodeError and crash the whole thing.
-                                #This try/except block skips over offending lines.
-                                try:
-                                    f.write(header+"\n")
-                                except UnicodeEncodeError:
-                                    print("Unicode Error Encounter! Skipped url no. {}!".format(self.cnt))
-                                    print("---")
-                                    pass
-                    except FileNotFoundError:
-                        print("FileNotFoundError in url no. {}!".format(self.cnt))
-                        print("---")
-                        continue
-                            
-                f.close()
+                    self.cnt += 1
+                    print("Grabbed data from url no. {}!".format(self.cnt))
+                    print("---")
+                    
                 #--------------------------------------------------------------
                 
-                
-                '''
-                #Removes blank lines in the txt file.
-                f = open((file_name), 'r+')
-                d = f.readlines()
-                f.seek(0)
-                for i in d:
-                    if not i.startswith('/') and i != '\n':
-                        f.write(i)
-                f.truncate()
-                f.close()
-                '''
-                self.output_file_id = file_name
-                
-                self.cnt += 1
-                print("Grabbed headers and statistics from url no. {}!".format(self.cnt))
-                print("---")
     
     #This function creates the percent doc.            
     def build_percent_doc(self, folder):
-        self.percent_doc_string = (folder+"\\"+"PERCENT_FIGURES.txt")
+        self.percent_doc_string = (folder+"\\"+"Search Report.txt")
         #Probably redundant...but this ensures the folder title doesn't contain quotation marks.
         self.percent_doc_string = self.percent_doc_string.replace("\"","")
         f = open(self.percent_doc_string,"w+")
         f.write("""
-                \n----------THIS DOCUMENT CONTAINS STATISTICS!----------\n
+                \n----------STATISTICS | KEYWORDS | SUMMARIES ----------\n
                 """)
         f.close()
     
@@ -245,11 +228,18 @@ class ScraperTool():
                 
                 #We create or open a text doc where we will store the collected summaries.
                 with open(self.sum_collection, "a") as f:
+                    
+                    try:
                 
-                    for sentence in summarizer(parser.document, SENTENCES_COUNT):
-                        #We call the split_paragraphs function to make the summaries easier to read.
-                        self.split_paragraphs(str(sentence))
-                        f.write(self.temp_string+'\n')
+                        for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                            #We call the split_paragraphs function to make the summaries easier to read.
+                            self.split_paragraphs(str(sentence))
+                            f.write(self.temp_string+'\n')
+                            
+                    except:
+                        print("Error detected in summarizer phase one. Continuing...\n")
+                        pass
+                        
                         
     #This function runs through our document of collected summaries and creates a meta summary.                    
     def engage_supersummarizer_phase_two(self, folder):
@@ -273,10 +263,16 @@ class ScraperTool():
         
         #We create or write to a text doc containing the meta summary.
         with open(meta_sum, "a") as f:
+            
+            try:
         
-            for sentence in summarizer(parser.document, SENTENCES_COUNT):
-                self.split_paragraphs(str(sentence))
-                f.write(self.temp_string+'\n\n')
+                for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                    self.split_paragraphs(str(sentence))
+                    f.write(self.temp_string+'\n\n')
+                    
+            except:
+                print("Error detected in summarizer phase two. Continuing...\n")
+                pass
         
 
             
@@ -285,15 +281,11 @@ class ScraperTool():
         #We create the doc for statistics data.
         self.build_percent_doc(folder)
         #We pull the headers and statistics from each url and write them to the percent doc.
-        self.grab_headers_and_statistics(folder)
+        self.generate_search_report(folder)
         #We summarize each article and write to the percent doc.
         self.engage_supersummarizer_phase_one(folder)
         #We create a meta summary of summaries.
         self.engage_supersummarizer_phase_two(folder)
         print("{} of {} urls sucessful!".format(self.cnt, self.url_total))
-        print("Found {} potential statistics!".format(self.pcnt))
         print("Finished!")
         os.startfile(folder)
-
-
-
