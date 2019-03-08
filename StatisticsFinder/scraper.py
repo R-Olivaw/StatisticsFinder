@@ -42,9 +42,6 @@ class ScraperTool():
     
         self.temp_string = exclamations
         
-    #UNDER CONSTRUCTION
-    def sumy_time(self):
-        pass
     
     #This function searches for all header tags and writes them to a new txt file.
     def grab_headers_and_statistics(self, folder):
@@ -147,8 +144,7 @@ class ScraperTool():
                     try:
                         #See SUMY documentation for explanation.
                         parser = HtmlParser.from_url(line.strip(), Tokenizer(LANGUAGE))
-                        # or for plain text files
-                        # parser = PlaintextParser.from_file("document.txt", Tokenizer(LANGUAGE))
+
                         stemmer = Stemmer(LANGUAGE)
                     
                         summarizer = Summarizer(stemmer)
@@ -213,7 +209,8 @@ class ScraperTool():
                 self.cnt += 1
                 print("Grabbed headers and statistics from url no. {}!".format(self.cnt))
                 print("---")
-                
+    
+    #This function creates the percent doc.            
     def build_percent_doc(self, folder):
         self.percent_doc_string = (folder+"\\"+"PERCENT_FIGURES.txt")
         #Probably redundant...but this ensures the folder title doesn't contain quotation marks.
@@ -223,43 +220,50 @@ class ScraperTool():
                 \n----------THIS DOCUMENT CONTAINS STATISTICS!----------\n
                 """)
         f.close()
-        
+    
+    #This function runs through each url and creates a summary of the article content.    
     def engage_supersummarizer_phase_one(self, folder):        
         LANGUAGE = "english"
+        #This is the length of the summary output. May need some adjusting.
         SENTENCES_COUNT = 15
         
-        
+        #We open up the url list document.
         with open(self.url_list, 'r+', encoding='utf-8') as list_doc:
             for line in list_doc:
                 
-        
+                #Noe the .strip() method here. Without each, many urls with turn up 404 errors.
                 parser = HtmlParser.from_url(line.strip(), Tokenizer(LANGUAGE))
-                # or for plain text files
-                # parser = PlaintextParser.from_file("document.txt", Tokenizer(LANGUAGE))
+
                 stemmer = Stemmer(LANGUAGE)
                 
                 summarizer = Summarizer(stemmer)
                 summarizer.stop_words = get_stop_words(LANGUAGE)
                 
+                #We create a string that is the intended directory information of our collected summaries.
+                #Probably doesn't need to be run in the loop...but it works...
                 self.sum_collection = (folder+"\\"+"Summary Collection.txt")
                 
+                #We create or open a text doc where we will store the collected summaries.
                 with open(self.sum_collection, "a") as f:
                 
                     for sentence in summarizer(parser.document, SENTENCES_COUNT):
+                        #We call the split_paragraphs function to make the summaries easier to read.
                         self.split_paragraphs(str(sentence))
                         f.write(self.temp_string+'\n')
                         
-                        
+    #This function runs through our document of collected summaries and creates a meta summary.                    
     def engage_supersummarizer_phase_two(self, folder):
         
         LANGUAGE = "english"
+        #This is the length of the summary output. May need some adjusting.
         SENTENCES_COUNT = 20
         
+        #We assign a local variable based on the summary collection string representing the file directory of the summary collection.
         meta_sum_file = self.sum_collection
         
+        #Note we're using SUMY's plaintext parser.
         parser = PlaintextParser.from_file(meta_sum_file, Tokenizer(LANGUAGE))
-        # or for plain text files
-        # parser = PlaintextParser.from_file("document.txt", Tokenizer(LANGUAGE))
+
         stemmer = Stemmer(LANGUAGE)
         
         summarizer = Summarizer(stemmer)
@@ -267,6 +271,7 @@ class ScraperTool():
         
         meta_sum = (folder+"\\"+"Meta Summary.txt")
         
+        #We create or write to a text doc containing the meta summary.
         with open(meta_sum, "a") as f:
         
             for sentence in summarizer(parser.document, SENTENCES_COUNT):
@@ -277,9 +282,13 @@ class ScraperTool():
             
     def scrape(self, folder):
         import os
+        #We create the doc for statistics data.
         self.build_percent_doc(folder)
+        #We pull the headers and statistics from each url and write them to the percent doc.
         self.grab_headers_and_statistics(folder)
+        #We summarize each article and write to the percent doc.
         self.engage_supersummarizer_phase_one(folder)
+        #We create a meta summary of summaries.
         self.engage_supersummarizer_phase_two(folder)
         print("{} of {} urls sucessful!".format(self.cnt, self.url_total))
         print("Found {} potential statistics!".format(self.pcnt))
