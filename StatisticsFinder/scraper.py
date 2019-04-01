@@ -140,10 +140,15 @@ class ScraperTool():
                     f.write("\n-----KEYWORDS-----\n\n")
                     
                     #Here, we're using the newspaper library to parse each article with nlp and extract keywords.
-                    article = Article(url=line.strip())
-                    article.download()
-                    article.parse()
-                    article.nlp()
+                    try:
+                        article = Article(url=line.strip())
+                        article.download()
+                        article.parse()
+                        article.nlp()
+                        
+                    except:
+                        print("Error during NLP. Continuing...")
+                        pass
                     
                     #We print keywords to the doc.
                     kw_cnt = 0
